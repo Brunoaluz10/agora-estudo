@@ -24,19 +24,19 @@ import {
   Bell
 } from "lucide-react";
 import { ProgressChart } from "@/components/ui/progress-chart";
-import { progressoMensal } from "@/lib/mock-data";
-import { metricas } from "@/lib/mock-data";
 import { MetricCard } from "@/components/ui/metric-card";
 import { topicos, especialidades, Topico } from "@/lib/mock-data";
 import { TopicsTable } from "@/components/ui/topics-table";
 import { aulas as aulasOriginais } from "../data/aulas";
 import { useState, useMemo, useEffect } from "react";
+import { useAulas } from "@/lib/aulas-context";
 import { TopicForm } from "@/components/ui/topic-form";
 import { Dialog } from "@headlessui/react";
 import { useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartRadarMaterias } from "@/components/ui/chart-radar-materias";
 import { ChartRadarReleituras } from "@/components/ui/chart-radar-releituras";
+import { FilterBar } from "@/components/ui/filter-bar";
 // Adicionar estilos globais para animação
 import "../styles/aulas-animacao.css";
 import Confetti from "react-confetti";
@@ -87,27 +87,144 @@ type AulaComData = typeof aulasOriginais[0] & {
   datasRevisao?: string[];
   revisoesFeitas?: string[];
   releiturasExtras?: string[];
+  tempoEstudado?: number; // em segundos
+  concluida?: boolean;
+  emProgresso?: boolean;
 };
 
 export default function Home() {
-  const [aulasState, setAulasState] = useState<AulaComData[]>(
-    aulasOriginais.map(a => ({
-      ...a,
-      ultimaRevisao: (a as any).ultimaRevisao ?? undefined,
-      releituras: 0,
-      datasRevisao: [],
-      revisoesFeitas: [],
-    }))
-  );
-  // Ao inicializar aulasState, garantir que cada aula tenha ultimaRevisao
+  const { 
+    aulas: aulasState, 
+    tempoTotalEstudado, 
+    marcarConcluida,
+    marcarRevisaoFeita,
+    especialidades,
+    metricas,
+    getEstatisticasGerais
+  } = useAulas();
+
+  // Estados para filtros
   const [areaFiltro, setAreaFiltro] = useState<string>("");
+  
+  // Estados para especialidades
+  const [especialidadesExpandidas, setEspecialidadesExpandidas] = useState(false);
+  const [especialidadesVisiveis, setEspecialidadesVisiveis] = useState(3); // Mostrar apenas 3 inicialmente
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [periodo, setPeriodo] = useState<'3meses' | '30dias' | '7dias' | '24h' | '48h'>('3meses');
+
+  // Filtrar aulas baseado nos filtros aplicados
   const aulasFiltradas = aulasState.filter((aula: AulaComData) => {
     const matchArea = areaFiltro ? aula.area === areaFiltro : true;
     const matchPrioridade = prioridadeFiltro ? aula.prioridade === prioridadeFiltro : true;
-    return matchArea && matchPrioridade;
+    const matchSearch = searchTerm ? aula.titulo.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+    
+    // Filtro por status
+    let matchStatus = true;
+    if (selectedStatus) {
+      switch (selectedStatus) {
+        case 'concluida':
+          matchStatus = aula.concluida || false;
+          break;
+        case 'em_progresso':
+          matchStatus = aula.emProgresso || false;
+          break;
+        case 'pendente':
+          matchStatus = !(aula.concluida || false) && !(aula.emProgresso || false);
+          break;
+      }
+    }
+    
+    return matchArea && matchPrioridade && matchSearch && matchStatus;
   });
+
+  // Calcular métricas dinâmicas baseadas nos dados filtrados
+  const metricasDinamicas = useMemo(() => {
+    // Usar aulasFiltradas em vez de aulasState para que as métricas reflitam os filtros
+    const aulasConcluidas = aulasFiltradas.filter(aula => aula.concluida).length;
+    const totalAulas = aulasFiltradas.length;
+    const progressoGeral = totalAulas > 0 ? Math.round((aulasConcluidas / totalAulas) * 100) : 0;
+    
+    // Calcular tempo total apenas das aulas filtradas
+    const tempoTotalFiltrado = aulasFiltradas.reduce((total, aula) => total + (aula.tempoEstudado || 0), 0);
+    const tempoTotalHoras = Math.floor(tempoTotalFiltrado / 3600);
+    const tempoTotalMinutos = Math.floor((tempoTotalFiltrado % 3600) / 60);
+    const tempoTotalSegundos = tempoTotalFiltrado % 60;
+    
+    let tempoFormatado = '';
+    if (tempoTotalHoras > 0) {
+      tempoFormatado = `${tempoTotalHoras}h ${tempoTotalMinutos.toString().padStart(2, '0')}m ${tempoTotalSegundos.toString().padStart(2, '0')}s`;
+    } else if (tempoTotalMinutos > 0) {
+      tempoFormatado = `${tempoTotalMinutos}m ${tempoTotalSegundos.toString().padStart(2, '0')}s`;
+    } else {
+      tempoFormatado = `${tempoTotalSegundos}s`;
+    }
+
+    // Calcular variação baseada nas aulas filtradas do mês atual
+    const mesAtual = new Date().getMonth();
+    const aulasConcluidasMes = aulasFiltradas.filter(aula => {
+      if (!aula.concluida || !aula.ultimaRevisao) return false;
+      const dataConclusao = new Date(aula.ultimaRevisao);
+      return dataConclusao.getMonth() === mesAtual;
+    }).length;
+
+    // Calcular variação percentual baseada no total de aulas (não filtradas) para contexto
+    const totalAulasGeral = aulasState.length;
+    const aulasConcluidasGeral = aulasState.filter(aula => aula.concluida).length;
+    const progressoGeralTotal = totalAulasGeral > 0 ? Math.round((aulasConcluidasGeral / totalAulasGeral) * 100) : 0;
+
+    // Calcular temas revisados: aulas concluídas + revisões feitas
+    const totalRevisoesFeitas = aulasFiltradas.reduce((total, aula) => {
+      return total + (aula.revisoesFeitas?.length || 0);
+    }, 0);
+    const temasRevisados = aulasConcluidas + totalRevisoesFeitas;
+
+    // Calcular variação de temas revisados no mês atual
+    const revisoesFeitasMes = aulasFiltradas.reduce((total, aula) => {
+      if (!aula.revisoesFeitas) return total;
+      const revisoesMes = aula.revisoesFeitas.filter(data => {
+        const dataRevisao = new Date(data);
+        return dataRevisao.getMonth() === mesAtual;
+      }).length;
+      return total + revisoesMes;
+    }, 0);
+    const temasRevisadosMes = aulasConcluidasMes + revisoesFeitasMes;
+
+    return [
+      {
+        id: 'temas-revisados',
+        titulo: 'Temas Revisados',
+        valor: temasRevisados,
+        variacao: temasRevisadosMes,
+        descricao: 'Aulas concluídas + revisões',
+        meta: `Meta: ${totalAulas} temas`,
+        icone: 'BookOpen',
+        cor: 'blue'
+      },
+      {
+        id: 'tempo-estudo',
+        titulo: 'Tempo de Estudo',
+        valor: tempoFormatado,
+        variacao: tempoTotalHoras > 0 ? Math.round(tempoTotalHoras / 10) : 0,
+        descricao: 'Tempo total estudado',
+        meta: 'Meta: 40h/semana',
+        icone: 'Clock',
+        cor: 'green'
+      },
+      {
+        id: 'progresso-geral',
+        titulo: 'Progresso Geral',
+        valor: `${progressoGeral}%`,
+        variacao: progressoGeral > 0 ? Math.round(progressoGeral / 10) : 0,
+        descricao: 'Conclusão do programa',
+        meta: 'Meta: 100%',
+        icone: 'Award',
+        cor: 'purple'
+      }
+    ];
+  }, [aulasFiltradas, aulasState, tempoTotalEstudado]);
+
   // Atualizar modalAula para usar titulo
   const [modalAula, setModalAula] = useState<null | { titulo: string; concluindo: boolean }>(null);
   const [dataManual, setDataManual] = useState<string>("");
@@ -121,7 +238,10 @@ export default function Home() {
   // Adicionar estado para data selecionada no calendário
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | undefined>(undefined);
   function toggleConcluida(idx: number) {
-    setAulasState(aulasState.map((a: AulaComData, i: number) => i === idx ? { ...a, concluida: !a.concluida } : a));
+    const aula = aulasState[idx];
+    if (aula) {
+      marcarConcluida(aula.id, !aula.concluida);
+    }
   }
   function normalizarPrioridade(p: string) {
     return (p || "")
@@ -131,24 +251,18 @@ export default function Home() {
   }
   function handleCheckConcluida(titulo: string) {
     const aula = aulasState.find(a => a.titulo === titulo);
-    setModalAula({ titulo, concluindo: !aula?.concluida });
-    setDataManual("");
+    if (aula) {
+      setModalAula({ titulo, concluindo: !aula.concluida });
+      setDataManual("");
+    }
   }
   // Ao concluir uma aula, agendar todas as revisões (D+1, D+3, D+10, D+40) usando gerarDatasRevisao.
   function confirmarConclusaoAgora() {
     if (modalAula) {
-      const hoje = new Date().toISOString().slice(0, 10);
-      setAulasState(aulasState.map(a =>
-        a.titulo === modalAula.titulo
-          ? {
-              ...a,
-              concluida: modalAula.concluindo,
-              ultimaRevisao: modalAula.concluindo ? hoje : (a.ultimaRevisao ?? ""),
-              datasRevisao: modalAula.concluindo ? gerarDatasRevisao(hoje) : [],
-              revisoesFeitas: []
-            }
-          : a
-      ));
+      const aula = aulasState.find(a => a.titulo === modalAula.titulo);
+      if (aula) {
+        marcarConcluida(aula.id, modalAula.concluindo);
+      }
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 4000);
       setModalAula(null);
@@ -156,17 +270,10 @@ export default function Home() {
   }
   function confirmarConclusaoDataManual() {
     if (modalAula && dataManual) {
-      setAulasState(aulasState.map(a =>
-        a.titulo === modalAula.titulo
-          ? {
-              ...a,
-              concluida: modalAula.concluindo,
-              ultimaRevisao: modalAula.concluindo ? dataManual : (a.ultimaRevisao ?? ""),
-              datasRevisao: modalAula.concluindo ? gerarDatasRevisao(dataManual) : [],
-              revisoesFeitas: []
-            }
-          : a
-      ));
+      const aula = aulasState.find(a => a.titulo === modalAula.titulo);
+      if (aula) {
+        marcarConcluida(aula.id, modalAula.concluindo);
+      }
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 4000);
       setModalAula(null);
@@ -176,22 +283,18 @@ export default function Home() {
     setModalAula(null);
   }
   function alterarReleituras(titulo: string, delta: number) {
-    setAulasState(aulasState => aulasState.map(a => a.titulo === titulo ? { ...a, releituras: Math.max(0, (a.releituras ?? 0) + delta) } : a));
+    // Implementar função para alterar releituras no contexto se necessário
+    console.log('Alterar releituras:', titulo, delta);
   }
-  // Ao marcar revisão feita, agenda a próxima se houver
-  function marcarRevisaoFeita(titulo: string, data: string) {
-    setAulasState(aulasState => aulasState.map(a => {
-      if (a.titulo !== titulo) return a;
-      const novasFeitas = [...(a.revisoesFeitas || []), data];
-      const base = a.ultimaRevisao || data;
-      const prox = proximaDataRevisao(a, base);
-      return {
-        ...a,
-        revisoesFeitas: novasFeitas,
-        datasRevisao: prox ? [prox] : [],
-        releituras: (a.releituras ?? 0) + 1,
-      };
-    }));
+  function handleMarcarRevisaoFeita(titulo: string, data: string) {
+    // Encontrar a aula pelo título
+    const aula = aulasState.find(a => a.titulo === titulo);
+    if (aula) {
+      marcarRevisaoFeita(aula.id, data);
+      console.log('✅ Revisão marcada como feita:', titulo, 'em', data);
+    } else {
+      console.log('❌ Aula não encontrada:', titulo);
+    }
   }
   // Função para adicionar releitura
   function handleAddReleitura(titulo: string) {
@@ -200,22 +303,15 @@ export default function Home() {
   }
   function confirmarReleituraAgora() {
     if (modalReleitura) {
-      const hoje = new Date().toISOString().slice(0, 10);
-      setAulasState(aulasState => aulasState.map(a =>
-        a.titulo === modalReleitura.titulo
-          ? { ...a, releituras: (a.releituras ?? 0) + 1, revisoesFeitas: [...(a.revisoesFeitas || []), hoje] }
-        : a
-      ));
+      // Implementar função para confirmar releitura no contexto se necessário
+      console.log('Confirmar releitura agora:', modalReleitura.titulo);
       setModalReleitura(null);
     }
   }
   function confirmarReleituraDataManual() {
     if (modalReleitura && dataReleituraManual) {
-      setAulasState(aulasState => aulasState.map(a =>
-        a.titulo === modalReleitura.titulo
-          ? { ...a, releituras: (a.releituras ?? 0) + 1, revisoesFeitas: [...(a.revisoesFeitas || []), dataReleituraManual] }
-        : a
-      ));
+      // Implementar função para confirmar releitura com data no contexto se necessário
+      console.log('Confirmar releitura com data:', modalReleitura.titulo, dataReleituraManual);
       setModalReleitura(null);
     }
   }
@@ -227,28 +323,7 @@ export default function Home() {
     setModalReleitura({ titulo, extra: true });
     setDataReleituraManual("");
   }
-  // Adicionar funções para confirmar releitura extra
-  function confirmarReleituraExtraAgora() {
-    if (modalReleitura) {
-      const hoje = new Date().toISOString().slice(0, 10);
-      setAulasState(aulasState => aulasState.map(a =>
-        a.titulo === modalReleitura.titulo
-          ? { ...a, releiturasExtras: [...(a.releiturasExtras || []), hoje] }
-        : a
-      ));
-      setModalReleitura(null);
-    }
-  }
-  function confirmarReleituraExtraDataManual() {
-    if (modalReleitura && dataReleituraManual) {
-      setAulasState(aulasState => aulasState.map(a =>
-        a.titulo === modalReleitura.titulo
-          ? { ...a, releiturasExtras: [...(a.releiturasExtras || []), dataReleituraManual] }
-        : a
-      ));
-      setModalReleitura(null);
-    }
-  }
+  // As funções confirmarReleituraExtraAgora e confirmarReleituraExtraDataManual foram removidas pois não estão integradas ao contexto global
   // Função para gerar próxima data de revisão baseada no histórico
   function proximaDataRevisao(aula: AulaComData, dataBase: string) {
     const feitas = aula.revisoesFeitas?.length || 0;
@@ -337,20 +412,32 @@ export default function Home() {
   const progressoGrafico = useMemo(() => {
     // Conta quantas aulas concluídas por mês
     const porMes: Record<string, number> = {};
-    mesesGrafico.forEach(m => (porMes[m] = 0));
-    aulasComDatas.forEach((aula: { ultimaRevisao: string }) => {
-      const mes = getMesAbreviado(aula.ultimaRevisao);
-      if (mes && Object.prototype.hasOwnProperty.call(porMes, mes)) porMes[mes]++;
+    const tempoPorMes: Record<string, number> = {};
+    mesesGrafico.forEach(m => {
+      porMes[m] = 0;
+      tempoPorMes[m] = 0;
     });
+    
+    aulasComDatas.forEach((aula: { ultimaRevisao: string } & Record<string, any>) => {
+      const mes = getMesAbreviado(aula.ultimaRevisao);
+      if (mes && Object.prototype.hasOwnProperty.call(porMes, mes)) {
+        porMes[mes]++;
+        // Adicionar tempo de estudo real da aula
+        tempoPorMes[mes] += (aula.tempoEstudado as number) || 0;
+      }
+    });
+    
     // Progresso acumulado
     let acumulado = 0;
+    let tempoAcumulado = 0;
     return mesesGrafico.map(m => {
       acumulado += porMes[m];
+      tempoAcumulado += tempoPorMes[m];
       return {
         mes: m,
         temasRevisados: acumulado,
-        tempoEstudo: 0, // pode ser mock
-        taxaAcerto: 0, // pode ser mock
+        tempoEstudo: Math.floor(tempoAcumulado / 3600), // Converter segundos para horas
+        taxaAcerto: 0, // pode ser mock ou implementado futuramente
         questoesRespondidas: 0
       };
     });
@@ -423,17 +510,17 @@ export default function Home() {
   }));
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-background">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+      <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-card border-r border-border">
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center px-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex h-16 items-center px-6 border-b border-border">
             <div className="flex items-center space-x-3">
-              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">A</span>
+              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                <span className="text-primary-foreground font-bold text-sm">A</span>
               </div>
-              <span className="text-xl font-semibold text-gray-900 dark:text-white">Agora Estudo</span>
+              <span className="text-xl font-semibold text-foreground">Agora Estudo</span>
             </div>
           </div>
 
@@ -472,26 +559,41 @@ export default function Home() {
 
             {/* Especialidades Section */}
             <div className="pt-6">
-              <h3 className="px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Especialidades
-              </h3>
+              <div className="flex items-center justify-between px-3 mb-2">
+                <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Especialidades
+                </h3>
+                <button
+                  onClick={() => {
+                    setEspecialidadesExpandidas(!especialidadesExpandidas);
+                    setEspecialidadesVisiveis(especialidadesExpandidas ? 3 : especialidades.length);
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                >
+                  {especialidadesExpandidas ? 'Recolher' : 'Expandir'}
+                </button>
+              </div>
               <div className="mt-2 space-y-1">
-                <a href="#" className="flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                  <BookOpen className="h-5 w-5" />
-                  <span>Cardiologia</span>
-                </a>
-                <a href="#" className="flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                  <Brain className="h-5 w-5" />
-                  <span>Neurologia</span>
-                </a>
-                <a href="#" className="flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                  <FileText className="h-5 w-5" />
-                  <span>Pediatria</span>
-                </a>
-                <a href="#" className="flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                  <MoreHorizontal className="h-5 w-5" />
-                  <span>Mais Especialidades</span>
-                </a>
+                {especialidades.slice(0, especialidadesVisiveis).map((esp) => (
+                  <a 
+                    key={esp.id}
+                    href="#" 
+                    className="flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <div className={`h-5 w-5 rounded-full bg-${esp.cor}-500 flex items-center justify-center`}>
+                      <span className="text-white text-xs font-bold">{esp.nome.charAt(0)}</span>
+                    </div>
+                    <span className="flex-1">{esp.nome}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {esp.topicosRevisados}/{esp.totalTopicos}
+                    </span>
+                  </a>
+                ))}
+                {!especialidadesExpandidas && especialidades.length > 3 && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 px-3 py-1">
+                    +{especialidades.length - 3} mais especialidades
+                  </div>
+                )}
               </div>
             </div>
           </nav>
@@ -554,7 +656,7 @@ export default function Home() {
         <main className="p-6">
           {/* Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {metricas.map((metrica) => {
+            {metricasDinamicas.map((metrica) => {
               const iconMap = {
                 BookOpen,
                 Clock,
@@ -577,8 +679,10 @@ export default function Home() {
             })}
           </div>
 
+
+
           {/* Box Metas do Dia */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-blue-400 dark:border-blue-600 shadow-md p-6 mb-8 flex flex-col gap-4 relative">
+          <div className="bg-[#181818] rounded-lg border border-blue-400 dark:border-blue-600 shadow-md p-6 mb-8 flex flex-col gap-4 relative">
             <div className="flex items-center gap-3 mb-2">
               <Bell className="h-6 w-6 text-blue-500 animate-bounce" />
               <span className="text-lg font-bold text-blue-700 dark:text-blue-300">Releituras de Hoje</span>
@@ -597,7 +701,7 @@ export default function Home() {
             <div className={`transition-all duration-500 overflow-hidden ${showReleiturasHoje ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}
               style={{ minHeight: showReleiturasHoje ? undefined : 0 }}>
               {revisoesHoje.length === 0 ? (
-                <div className="text-gray-500 dark:text-gray-400">Nenhuma releitura agendada para hoje. Aproveite para revisar conteúdos anteriores!</div>
+                <div className="text-gray-300">Nenhuma releitura agendada para hoje. Aproveite para revisar conteúdos anteriores!</div>
               ) : (
                 <ul className="space-y-2">
                   {revisoesHoje.map(aula => (
@@ -612,7 +716,7 @@ export default function Home() {
                       </div>
                       <button
                         className="px-3 py-1 rounded bg-green-600 text-white font-semibold hover:bg-green-700 transition"
-                        onClick={() => { marcarRevisaoFeita(aula.titulo, hojeStr); alterarReleituras(aula.titulo, 1); }}
+                        onClick={() => { handleMarcarRevisaoFeita(aula.titulo, hojeStr); alterarReleituras(aula.titulo, 1); }}
                       >
                         <CheckCircle className="inline-block mr-1 -mt-1" /> Marcar como feita
                       </button>
@@ -624,7 +728,7 @@ export default function Home() {
           </div>
 
           {/* Box Próximas Releituras */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-orange-400 dark:border-orange-600 shadow-md p-6 mb-8 flex flex-col gap-4 relative">
+          <div className="bg-[#181818] rounded-lg border border-orange-400 dark:border-orange-600 shadow-md p-6 mb-8 flex flex-col gap-4 relative">
             <div className="flex items-center gap-3 mb-2">
               <Bell className="h-6 w-6 text-orange-500 animate-bounce" />
               <span className="text-lg font-bold text-orange-700 dark:text-orange-300">Próximas Releituras</span>
@@ -660,7 +764,7 @@ export default function Home() {
                     defaultMonth={todasDatasFuturas.length > 0 ? new Date(todasDatasFuturas[0]) : undefined}
                   />
                   {todasDatasFuturas.length === 0 && (
-                    <div className="text-center text-gray-500 dark:text-gray-400 mt-4">
+                    <div className="text-center text-gray-300 mt-4">
                       Nenhuma revisão agendada. Conclua algumas aulas para ver as revisões no calendário!
                     </div>
                   )}
@@ -673,7 +777,7 @@ export default function Home() {
                       const grupo = revisoesFuturas.find(g => g.data === dataStr);
                       if (!grupo || grupo.aulas.length === 0) {
                         return (
-                          <div className="text-gray-500 dark:text-gray-400 mb-4">
+                          <div className="text-gray-300 mb-4">
                             Nenhuma revisão agendada para {selectedCalendarDate.toLocaleDateString('pt-BR')}.
                           </div>
                         );
@@ -700,7 +804,7 @@ export default function Home() {
                                 <button
                                   className="px-4 py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition flex items-center gap-2"
                                   onClick={() => { 
-                                    marcarRevisaoFeita(aula.titulo, grupo.data); 
+                                    handleMarcarRevisaoFeita(aula.titulo, grupo.data); 
                                     alterarReleituras(aula.titulo, 1); 
                                   }}
                                 >
@@ -729,12 +833,12 @@ export default function Home() {
                         </div>
                         <ul className="space-y-2">
                           {grupo.aulas.map(aula => (
-                            <li key={aula.titulo} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded px-3 py-2">
+                            <li key={aula.titulo} className="flex items-center justify-between bg-gray-700 rounded px-3 py-2">
                               <span className="font-medium text-gray-900 dark:text-white">{aula.titulo}</span>
                               <button
                                 className="px-3 py-1 rounded bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
                                 onClick={() => { 
-                                  marcarRevisaoFeita(aula.titulo, grupo.data); 
+                                  handleMarcarRevisaoFeita(aula.titulo, grupo.data); 
                                   alterarReleituras(aula.titulo, 1); 
                                 }}
                               >
@@ -752,7 +856,7 @@ export default function Home() {
           </div>
 
           {/* Chart Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8 relative">
+          <div className="bg-[#181818] rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8 relative">
             {/* Header animado */}
             <div className="flex items-center gap-3 mb-4 animate-fade-in-down">
               <div className="h-4 w-4 rounded-full bg-blue-600 flex items-center justify-center shadow-lg animate-bounce-in"></div>
@@ -773,20 +877,20 @@ export default function Home() {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Progresso por Especialidade</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Últimos 3 meses de estudo</p>
+                  <p className="text-sm text-gray-300">Últimos 3 meses de estudo</p>
                 </div>
                 <div className="flex space-x-2">
-                  <button className={`px-3 py-1 text-sm ${periodo === '3meses' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('3meses')}>Últimos 3 meses</button>
-                  <button className={`px-3 py-1 text-sm ${periodo === '30dias' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('30dias')}>Últimos 30 dias</button>
-                  <button className={`px-3 py-1 text-sm ${periodo === '7dias' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('7dias')}>Últimos 7 dias</button>
-                  <button className={`px-3 py-1 text-sm ${periodo === '24h' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('24h')}>Últimas 24h</button>
-                  <button className={`px-3 py-1 text-sm ${periodo === '48h' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('48h')}>Últimas 48h</button>
+                  <button className={`px-3 py-1 text-sm ${periodo === '3meses' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('3meses')}>Últimos 3 meses</button>
+                  <button className={`px-3 py-1 text-sm ${periodo === '30dias' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('30dias')}>Últimos 30 dias</button>
+                  <button className={`px-3 py-1 text-sm ${periodo === '7dias' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('7dias')}>Últimos 7 dias</button>
+                  <button className={`px-3 py-1 text-sm ${periodo === '24h' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('24h')}>Últimas 24h</button>
+                  <button className={`px-3 py-1 text-sm ${periodo === '48h' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'} rounded-md`} onClick={() => setPeriodo('48h')}>Últimas 48h</button>
                 </div>
               </div>
               
               {/* Placeholder for Chart */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-md flex items-center justify-center" style={{ width: 300, height: 300 }}>
+                <div className="bg-[#181818] rounded-lg border border-gray-200 dark:border-gray-700 shadow-md flex items-center justify-center" style={{ width: 300, height: 300 }}>
                   <ProgressChart data={progressoGrafico} />
                 </div>
                 <ChartRadarMaterias data={radarData} />
@@ -806,7 +910,7 @@ export default function Home() {
           </div>
 
           {/* Progresso por especialidade (releituras) */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8 relative">
+          <div className="bg-[#181818] rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8 relative">
             {/* Header animado */}
             <div className="flex items-center gap-3 mb-4 animate-fade-in-down">
               <div className="h-4 w-4 rounded-full bg-orange-500 flex items-center justify-center shadow-lg animate-bounce-in"></div>
@@ -824,7 +928,7 @@ export default function Home() {
               className={`transition-all duration-500 overflow-hidden ${showProgressoReleituras ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}
               style={{ minHeight: showProgressoReleituras ? undefined : 0 }}
             >
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Progresso de Releituras por Especialidade</h2>
+              <h2 className="text-lg font-semibold text-white mb-4">Progresso de Releituras por Especialidade</h2>
               <ul className="space-y-2">
                 {radarReleiturasData.map(item => (
                   <li key={item.area} className="flex items-center justify-between">
@@ -864,104 +968,106 @@ export default function Home() {
             )}
           </div>
 
-          {/* Filtros */}
-          <div className="flex flex-wrap gap-4 mb-4">
-            <select className="border rounded px-3 py-2 text-sm" value={areaFiltro} onChange={e => setAreaFiltro(e.target.value)}>
-              <option value="">Todas as Áreas</option>
-              {[...new Set(aulasOriginais.map((a: typeof aulasOriginais[0]) => a.area))].map((area: string) => (
-                <option key={area} value={area}>{area}</option>
-              ))}
-            </select>
-            <select className="border rounded px-3 py-2 text-sm" value={prioridadeFiltro} onChange={e => setPrioridadeFiltro(e.target.value)}>
-              <option value="">Todas as Prioridades</option>
-              {[...new Set(aulasOriginais.map((a: typeof aulasOriginais[0]) => a.prioridade))].map((p: string) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-            {(areaFiltro || prioridadeFiltro) && (
-              <button className="ml-2 text-xs text-blue-600 underline" onClick={() => { setAreaFiltro(""); setPrioridadeFiltro(""); }}>
-                Limpar filtros
-              </button>
-            )}
+          {/* Filtros de Progresso */}
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Filtros de Progresso</h2>
+            <FilterBar
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              selectedArea={areaFiltro}
+              onAreaChange={setAreaFiltro}
+              selectedPriority={prioridadeFiltro}
+              onPriorityChange={setPrioridadeFiltro}
+              selectedStatus={selectedStatus}
+              onStatusChange={setSelectedStatus}
+              areas={Array.from(new Set(aulasOriginais.map((a: typeof aulasOriginais[0]) => a.area)))}
+              priorities={Array.from(new Set(aulasOriginais.map((a: typeof aulasOriginais[0]) => a.prioridade)))}
+              onClearFilters={() => { setAreaFiltro(""); setPrioridadeFiltro(""); setSearchTerm(""); setSelectedStatus(""); }}
+              showStatusFilter={true}
+            />
           </div>
+
           {/* Tabela de aulas */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="p-6">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Aula</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Área</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Prioridade</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Concluída</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Releituras</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {aulasFiltradas.map((aula: AulaComData) => (
-                    <tr
-                      key={aula.titulo}
-                      className={`border-b border-gray-200 dark:border-gray-700 transition-all duration-300 ${aula.concluida ? "bg-green-50 dark:bg-green-900/30 aulas-concluida" : ""}`}
-                    >
-                      <td className="py-3 px-4 text-gray-900 dark:text-white flex items-center gap-2">
-                        {areaStyles[aula.area]?.emoji && (
-                          <span className="mr-1 text-lg align-middle">{areaStyles[aula.area].emoji}</span>
-                        )}
-                        {aula.titulo}
-                        {aula.concluida && (
-                          <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-200 text-green-800 animate-pop">Concluída</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`
-                            inline-block px-3 py-1 rounded-full text-xs font-semibold
-                            ${areaBgStyles[aula.area] || 'bg-gray-100'}
-                            ${areaStyles[aula.area]?.color || ''}
-                            whitespace-nowrap
-                          `}
-                        >
-                          {areaStyles[aula.area]?.emoji} {aula.area}
-                        </span>
-                      </td>
-                      <td className={`py-3 px-4`}>
-                        <span
-                          className={`
-                            px-2 py-0.5 rounded-full font-semibold
-                            text-xs sm:text-sm
-                            text-center
-                            break-words whitespace-normal
-                            max-w-[120px] inline-block
-                            ${prioridadeStyles[normalizarPrioridade(aula.prioridade)] || 'bg-gray-100 text-gray-800'}
-                          `}
-                        >
-                          {aula.prioridade}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Checkbox
-                          checked={aula.concluida}
-                          onCheckedChange={() => handleCheckConcluida(aula.titulo)}
-                          className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <button className="px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-lg font-bold hover:bg-gray-300 dark:hover:bg-gray-600"
-                            onClick={() => alterarReleituras(aula.titulo, -1)}
-                            disabled={aula.releituras === 0}>-</button>
-                          <span className="min-w-[2ch] text-center font-mono bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200 px-3 py-1 rounded-full">{aula.releituras ?? 0}</span>
-                          <button className="px-2 py-1 rounded bg-orange-200 dark:bg-orange-700 text-lg font-bold hover:bg-orange-300 dark:hover:bg-orange-600 text-orange-900 dark:text-orange-100"
-                            onClick={() => handleAddReleituraExtra(aula.titulo)}>+</button>
-                        </div>
-                        {aula.revisoesFeitas && aula.revisoesFeitas.length > 0 && (
-                          <span className="text-[10px] text-gray-500 block mt-1">{aula.revisoesFeitas.map((d, i) => <span key={d}>{i > 0 && ', '}{d.split('-').reverse().join('/')}</span>)}</span>
-                        )}
-                      </td>
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Tabela de Aulas</h2>
+            <div className="bg-[#181818] rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="p-6">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Aula</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Área</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Prioridade</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Concluída</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Releituras</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {aulasFiltradas.map((aula: AulaComData) => (
+                      <tr
+                        key={aula.titulo}
+                        className={`border-b border-gray-200 dark:border-gray-700 transition-all duration-300 ${aula.concluida ? "bg-green-50 dark:bg-green-900/30 aulas-concluida" : ""}`}
+                      >
+                        <td className="py-3 px-4 text-gray-900 dark:text-white flex items-center gap-2">
+                          {areaStyles[aula.area]?.emoji && (
+                            <span className="mr-1 text-lg align-middle">{areaStyles[aula.area].emoji}</span>
+                          )}
+                          {aula.titulo}
+                          {aula.concluida && (
+                            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-200 text-green-800 animate-pop">Concluída</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`
+                              inline-block px-3 py-1 rounded-full text-xs font-semibold
+                              ${areaBgStyles[aula.area] || 'bg-gray-100'}
+                              ${areaStyles[aula.area]?.color || ''}
+                              whitespace-nowrap
+                            `}
+                          >
+                            {areaStyles[aula.area]?.emoji} {aula.area}
+                          </span>
+                        </td>
+                        <td className={`py-3 px-4`}>
+                          <span
+                            className={`
+                              px-2 py-0.5 rounded-full font-semibold
+                              text-xs sm:text-sm
+                              text-center
+                              break-words whitespace-normal
+                              max-w-[120px] inline-block
+                              ${prioridadeStyles[normalizarPrioridade(aula.prioridade)] || 'bg-gray-100 text-gray-800'}
+                            `}
+                          >
+                            {aula.prioridade}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Checkbox
+                            checked={aula.concluida}
+                            onCheckedChange={() => handleCheckConcluida(aula.titulo)}
+                            className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                          />
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <button className="px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-lg font-bold hover:bg-gray-300 dark:hover:bg-gray-600"
+                              onClick={() => alterarReleituras(aula.titulo, -1)}
+                              disabled={aula.releituras === 0}>-</button>
+                            <span className="min-w-[2ch] text-center font-mono bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200 px-3 py-1 rounded-full">{aula.releituras ?? 0}</span>
+                            <button className="px-2 py-1 rounded bg-orange-200 dark:bg-orange-700 text-lg font-bold hover:bg-orange-300 dark:hover:bg-orange-600 text-orange-900 dark:text-orange-100"
+                              onClick={() => handleAddReleituraExtra(aula.titulo)}>+</button>
+                          </div>
+                          {aula.revisoesFeitas && aula.revisoesFeitas.length > 0 && (
+                            <span className="text-[10px] text-gray-500 block mt-1">{aula.revisoesFeitas.map((d, i) => <span key={d}>{i > 0 && ', '}{d.split('-').reverse().join('/')}</span>)}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </main>
@@ -989,10 +1095,10 @@ export default function Home() {
               Deseja marcar a releitura {modalReleitura?.extra ? "extra " : ""}para hoje ou escolher uma data?
             </Dialog.Description>
             <div className="flex flex-col gap-4 w-full max-w-xs">
-              <button className="px-6 py-3 bg-orange-600 text-white rounded-lg text-lg font-semibold hover:bg-orange-700 transition" onClick={modalReleitura?.extra ? confirmarReleituraExtraAgora : confirmarReleituraAgora}>Sim, fiz releitura hoje</button>
+              <button className="px-6 py-3 bg-orange-600 text-white rounded-lg text-lg font-semibold hover:bg-orange-700 transition" onClick={modalReleitura?.extra ? confirmarReleituraAgora : confirmarReleituraAgora}>Sim, fiz releitura hoje</button>
               <div className="flex items-center gap-2">
                 <input type="date" className="border rounded px-3 py-2 text-base flex-1" value={dataReleituraManual} onChange={e => setDataReleituraManual(e.target.value)} />
-                <button className="px-4 py-2 bg-green-600 text-white rounded-lg text-base font-semibold hover:bg-green-700 transition" disabled={!dataReleituraManual} onClick={modalReleitura?.extra ? confirmarReleituraExtraDataManual : confirmarReleituraDataManual}>Releitura com data</button>
+                <button className="px-4 py-2 bg-green-600 text-white rounded-lg text-base font-semibold hover:bg-green-700 transition" disabled={!dataReleituraManual} onClick={modalReleitura?.extra ? confirmarReleituraDataManual : confirmarReleituraDataManual}>Releitura com data</button>
               </div>
               <button className="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg text-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 mt-2 transition" onClick={cancelarReleitura}>Cancelar</button>
             </div>

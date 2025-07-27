@@ -23,7 +23,7 @@ interface ChartRadarMateriasProps {
 
 export function ChartRadarMaterias({ data }: ChartRadarMateriasProps) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
+    <div className="bg-[#181818] rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
       <div className="items-center pb-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Radar de Áreas</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">Quantidade de aulas concluídas por especialidade</p>

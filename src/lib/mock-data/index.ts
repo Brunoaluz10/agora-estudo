@@ -33,193 +33,420 @@ export interface Metrica {
   cor: string;
 }
 
-export interface ProgressoMensal {
-  mes: string;
-  temasRevisados: number;
-  tempoEstudo: number;
-  taxaAcerto: number;
-  questoesRespondidas: number;
+export interface Releitura {
+  id: string;
+  topicoId: string;
+  data: string;
+  tipo: 'primeira' | 'segunda' | 'terceira' | 'quarta';
+  observacoes?: string;
+  tempoGasto: number; // em segundos
 }
 
-// Especialidades médicas
+// Especialidades baseadas no relatório de aulas
 export const especialidades: Especialidade[] = [
   {
-    id: 'cardio',
-    nome: 'Cardiologia',
-    cor: 'blue',
-    progresso: 75,
+    id: 'clinica-medica',
+    nome: 'Clínica Médica',
+    cor: 'bg-blue-500',
+    progresso: 34,
     totalTopicos: 45,
-    topicosRevisados: 34
+    topicosRevisados: 15
   },
   {
-    id: 'neuro',
-    nome: 'Neurologia',
-    cor: 'purple',
-    progresso: 60,
-    totalTopicos: 38,
-    topicosRevisados: 23
-  },
-  {
-    id: 'ped',
-    nome: 'Pediatria',
-    cor: 'green',
-    progresso: 45,
-    totalTopicos: 52,
-    topicosRevisados: 23
-  },
-  {
-    id: 'cir',
+    id: 'cirurgia-geral',
     nome: 'Cirurgia Geral',
-    cor: 'red',
-    progresso: 30,
-    totalTopicos: 40,
+    cor: 'bg-green-500',
+    progresso: 23,
+    totalTopicos: 38,
+    topicosRevisados: 8
+  },
+  {
+    id: 'ginecologia-obstetricia',
+    nome: 'Ginecologia e Obstetrícia',
+    cor: 'bg-purple-500',
+    progresso: 28,
+    totalTopicos: 42,
     topicosRevisados: 12
   },
   {
-    id: 'med',
-    nome: 'Medicina Interna',
-    cor: 'orange',
-    progresso: 55,
-    totalTopicos: 48,
-    topicosRevisados: 26
+    id: 'pediatria',
+    nome: 'Pediatria',
+    cor: 'bg-orange-500',
+    progresso: 31,
+    totalTopicos: 52,
+    topicosRevisados: 16
   },
   {
-    id: 'gine',
-    nome: 'Ginecologia',
-    cor: 'pink',
-    progresso: 40,
-    totalTopicos: 35,
-    topicosRevisados: 14
+    id: 'saude-coletiva',
+    nome: 'Saúde Coletiva',
+    cor: 'bg-red-500',
+    progresso: 18,
+    totalTopicos: 25,
+    topicosRevisados: 4
   }
 ];
 
-// Tópicos de estudo
+// Tópicos baseados no relatório de aulas
 export const topicos: Topico[] = [
+  // Clínica Médica
   {
-    id: '1',
-    nome: 'Insuficiência Cardíaca',
-    especialidade: 'Cardiologia',
+    id: 'cm-1',
+    nome: 'Diabetes: classificação, diagnóstico e tratamento',
+    especialidade: 'Clínica Médica',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'cm-2',
+    nome: 'Hipertensão arterial sistêmica',
+    especialidade: 'Clínica Médica',
     prioridade: 'alta',
     status: 'em_revisao',
-    ultimaRevisao: '2024-07-15',
-    proximaRevisao: '2024-07-22',
-    dificuldade: 'dificil',
-    fonte: 'Harrison',
-    observacoes: 'Foco em tratamento e classificação NYHA'
-  },
-  {
-    id: '2',
-    nome: 'AVC Isquêmico',
-    especialidade: 'Neurologia',
-    prioridade: 'alta',
-    status: 'concluido',
-    ultimaRevisao: '2024-07-18',
-    proximaRevisao: '2024-07-25',
-    dificuldade: 'dificil',
-    fonte: 'Adams & Victor',
-    observacoes: 'Janela terapêutica e trombolíticos'
-  },
-  {
-    id: '3',
-    nome: 'Pneumonia na Infância',
-    especialidade: 'Pediatria',
-    prioridade: 'media',
-    status: 'pendente',
-    proximaRevisao: '2024-07-28',
     dificuldade: 'medio',
-    fonte: 'Nelson',
-    observacoes: 'Critérios de internação'
+    fonte: 'Aristo Class'
   },
   {
-    id: '4',
-    nome: 'Apendicite Aguda',
+    id: 'cm-3',
+    nome: 'Pneumonia',
+    especialidade: 'Clínica Médica',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'cm-4',
+    nome: 'HIV',
+    especialidade: 'Clínica Médica',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'dificil',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'cm-5',
+    nome: 'Síndromes coronarianas',
+    especialidade: 'Clínica Médica',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'dificil',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'cm-6',
+    nome: 'Arritmias',
+    especialidade: 'Clínica Médica',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'dificil',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'cm-7',
+    nome: 'Suporte básico e avançado na parada cardiorrespiratória',
+    especialidade: 'Clínica Médica',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'dificil',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'cm-8',
+    nome: 'Intoxicações e acidentes com animais peçonhentos',
+    especialidade: 'Clínica Médica',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+
+  // Cirurgia Geral
+  {
+    id: 'cg-1',
+    nome: 'Pós-operatório',
     especialidade: 'Cirurgia Geral',
     prioridade: 'alta',
     status: 'pendente',
-    proximaRevisao: '2024-07-30',
     dificuldade: 'medio',
-    fonte: 'Schwartz',
-    observacoes: 'Diagnóstico diferencial'
+    fonte: 'Aristo Class'
   },
   {
-    id: '5',
-    nome: 'Diabetes Mellitus',
-    especialidade: 'Medicina Interna',
+    id: 'cg-2',
+    nome: 'Abdome agudo inflamatório',
+    especialidade: 'Cirurgia Geral',
     prioridade: 'alta',
-    status: 'concluido',
-    ultimaRevisao: '2024-07-10',
-    proximaRevisao: '2024-07-17',
-    dificuldade: 'medio',
-    fonte: 'Harrison',
-    observacoes: 'Complicações micro e macrovasculares'
-  },
-  {
-    id: '6',
-    nome: 'Pré-eclâmpsia',
-    especialidade: 'Ginecologia',
-    prioridade: 'alta',
-    status: 'em_revisao',
-    ultimaRevisao: '2024-07-12',
-    proximaRevisao: '2024-07-19',
+    status: 'pendente',
     dificuldade: 'dificil',
-    fonte: 'Williams',
-    observacoes: 'Critérios de gravidade'
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'cg-3',
+    nome: 'Hérnias',
+    especialidade: 'Cirurgia Geral',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+
+  // Ginecologia e Obstetrícia
+  {
+    id: 'go-1',
+    nome: 'Gestação de alto risco',
+    especialidade: 'Ginecologia e Obstetrícia',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'dificil',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'go-2',
+    nome: 'Infecções do trato genital feminino',
+    especialidade: 'Ginecologia e Obstetrícia',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'go-3',
+    nome: 'Assistência pré-natal',
+    especialidade: 'Ginecologia e Obstetrícia',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'go-4',
+    nome: 'Câncer de colo de útero e doenças da vulva',
+    especialidade: 'Ginecologia e Obstetrícia',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'go-5',
+    nome: 'Anticoncepção',
+    especialidade: 'Ginecologia e Obstetrícia',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'go-6',
+    nome: 'Sangramentos na gravidez',
+    especialidade: 'Ginecologia e Obstetrícia',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'dificil',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'go-7',
+    nome: 'Mastologia',
+    especialidade: 'Ginecologia e Obstetrícia',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'go-8',
+    nome: 'Assistência ao parto e ao puerpério',
+    especialidade: 'Ginecologia e Obstetrícia',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'dificil',
+    fonte: 'Aristo Class'
+  },
+
+  // Pediatria
+  {
+    id: 'ped-1',
+    nome: 'Crescimento e desenvolvimento',
+    especialidade: 'Pediatria',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'ped-2',
+    nome: 'Pneumonia na infância',
+    especialidade: 'Pediatria',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'ped-3',
+    nome: 'Atendimento ao recém-nascido em sala de parto',
+    especialidade: 'Pediatria',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'dificil',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'ped-4',
+    nome: 'Aleitamento, alimentação e suplementação na infância',
+    especialidade: 'Pediatria',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'ped-5',
+    nome: 'Imunizações',
+    especialidade: 'Pediatria',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'ped-6',
+    nome: 'Doenças exantemáticas',
+    especialidade: 'Pediatria',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+
+  // Saúde Coletiva
+  {
+    id: 'sc-1',
+    nome: 'Sistema Único de Saúde',
+    especialidade: 'Saúde Coletiva',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'facil',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'sc-2',
+    nome: 'Atenção Primária à Saúde',
+    especialidade: 'Saúde Coletiva',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'sc-3',
+    nome: 'Vigilância em Saúde',
+    especialidade: 'Saúde Coletiva',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'sc-4',
+    nome: 'Indicadores de Saúde',
+    especialidade: 'Saúde Coletiva',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'medio',
+    fonte: 'Aristo Class'
+  },
+  {
+    id: 'sc-5',
+    nome: 'Legislação Médica',
+    especialidade: 'Saúde Coletiva',
+    prioridade: 'alta',
+    status: 'pendente',
+    dificuldade: 'facil',
+    fonte: 'Aristo Class'
   }
 ];
 
 // Métricas do dashboard
 export const metricas: Metrica[] = [
   {
-    id: 'temas-revisados',
-    titulo: 'Temas Revisados',
-    valor: 127,
-    variacao: 15,
-    descricao: 'Crescimento este mês',
-    meta: 'Meta: 150 temas',
-    icone: 'BookOpen',
-    cor: 'blue'
-  },
-  {
-    id: 'tempo-estudo',
-    titulo: 'Tempo de Estudo',
-    valor: '42h',
-    variacao: 8,
-    descricao: 'Esta semana',
-    meta: 'Meta: 40h/semana',
-    icone: 'Clock',
-    cor: 'green'
-  },
-  {
-    id: 'taxa-acerto',
-    titulo: 'Taxa de Acerto',
-    valor: '78%',
-    variacao: 5,
-    descricao: 'Últimas 100 questões',
-    meta: 'Meta: 80%',
-    icone: 'Target',
-    cor: 'yellow'
-  },
-  {
-    id: 'progresso-geral',
-    titulo: 'Progresso Geral',
-    valor: '65%',
+    id: '1',
+    titulo: 'Tópicos Revisados',
+    valor: '55',
     variacao: 12,
-    descricao: 'Conclusão do programa',
+    descricao: 'Total de tópicos revisados',
+    meta: 'Meta: 200 tópicos',
+    icone: 'BookOpen',
+    cor: 'text-blue-600'
+  },
+  {
+    id: '2',
+    titulo: 'Tempo de Estudo',
+    valor: '127h',
+    variacao: 8,
+    descricao: 'Tempo total de estudo',
+    meta: 'Meta: 500 horas',
+    icone: 'Clock',
+    cor: 'text-green-600'
+  },
+  {
+    id: '3',
+    titulo: 'Releituras',
+    valor: '23',
+    variacao: -3,
+    descricao: 'Releituras realizadas',
+    meta: 'Meta: 100 releituras',
+    icone: 'RefreshCw',
+    cor: 'text-purple-600'
+  },
+  {
+    id: '4',
+    titulo: 'Progresso Geral',
+    valor: '68%',
+    variacao: 5,
+    descricao: 'Progresso geral do curso',
     meta: 'Meta: 100%',
-    icone: 'Award',
-    cor: 'purple'
+    icone: 'TrendingUp',
+    cor: 'text-orange-600'
   }
 ];
 
-// Progresso mensal para gráficos
-export const progressoMensal: ProgressoMensal[] = [
-  { mes: 'Jan', temasRevisados: 15, tempoEstudo: 120, taxaAcerto: 65, questoesRespondidas: 200 },
-  { mes: 'Fev', temasRevisados: 22, tempoEstudo: 140, taxaAcerto: 68, questoesRespondidas: 250 },
-  { mes: 'Mar', temasRevisados: 18, tempoEstudo: 130, taxaAcerto: 70, questoesRespondidas: 220 },
-  { mes: 'Abr', temasRevisados: 25, tempoEstudo: 160, taxaAcerto: 72, questoesRespondidas: 300 },
-  { mes: 'Mai', temasRevisados: 30, tempoEstudo: 180, taxaAcerto: 75, questoesRespondidas: 350 },
-  { mes: 'Jun', temasRevisados: 28, tempoEstudo: 170, taxaAcerto: 76, questoesRespondidas: 320 },
-  { mes: 'Jul', temasRevisados: 35, tempoEstudo: 200, taxaAcerto: 78, questoesRespondidas: 400 }
+// Releituras realizadas
+export const releituras: Releitura[] = [
+  {
+    id: '1',
+    topicoId: 'cm-1',
+    data: '2024-01-15',
+    tipo: 'primeira',
+    observacoes: 'Conceitos básicos bem assimilados',
+    tempoGasto: 2700 // 45 minutos em segundos
+  },
+  {
+    id: '2',
+    topicoId: 'cm-1',
+    data: '2024-01-22',
+    tipo: 'segunda',
+    observacoes: 'Revisão focada em complicações',
+    tempoGasto: 1800 // 30 minutos em segundos
+  },
+  {
+    id: '3',
+    topicoId: 'cm-2',
+    data: '2024-01-18',
+    tipo: 'primeira',
+    observacoes: 'Farmacologia dos anti-hipertensivos',
+    tempoGasto: 3600 // 60 minutos em segundos
+  },
+  {
+    id: '4',
+    topicoId: 'ped-1',
+    data: '2024-01-20',
+    tipo: 'primeira',
+    observacoes: 'Curvas de crescimento',
+    tempoGasto: 2400 // 40 minutos em segundos
+  }
 ];
 
 // Simular delay de rede
@@ -242,9 +469,9 @@ export async function getMetricas(): Promise<Metrica[]> {
   return metricas;
 }
 
-export async function getProgressoMensal(): Promise<ProgressoMensal[]> {
+export async function getReleituras(): Promise<Releitura[]> {
   await simularDelay(400);
-  return progressoMensal;
+  return releituras;
 }
 
 export async function getTopicoById(id: string): Promise<Topico | undefined> {

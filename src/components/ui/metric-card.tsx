@@ -62,7 +62,7 @@ export function MetricCard({
   const isPositive = variation >= 0;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+    <div className="bg-[#181818] rounded-lg border border-gray-200 dark:border-gray-700 p-6">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600 dark:text-gray-400">

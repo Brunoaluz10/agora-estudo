@@ -1,7 +1,13 @@
 "use client";
 
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
-import { ProgressoMensal } from '@/lib/mock-data';
+interface ProgressoMensal {
+  mes: string;
+  temasRevisados: number;
+  tempoEstudo: number;
+  taxaAcerto: number;
+  questoesRespondidas: number;
+}
 
 interface ProgressChartProps {
   data: ProgressoMensal[];
@@ -20,7 +26,7 @@ export function ProgressChart({ data }: ProgressChartProps) {
         />
         <Legend />
         <Line type="monotone" dataKey="temasRevisados" name="Temas Revisados" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} />
-        <Line type="monotone" dataKey="tempoEstudo" name="Tempo de Estudo (h)" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} />
+        <Line type="monotone" dataKey="tempoEstudo" name="Tempo de Estudo (h:m:s)" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} />
         <Line type="monotone" dataKey="taxaAcerto" name="Taxa de Acerto (%)" stroke="#f59e42" strokeWidth={2} dot={{ r: 4 }} />
       </LineChart>
     </div>

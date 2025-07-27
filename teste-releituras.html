@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste Releituras</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste de Próximas Releituras</h1>
+    
+    <div class="test-section">
+        <h3>📊 Dados Atuais no localStorage</h3>
+        <div id="dados-atual"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>🔧 Ações de Teste</h3>
+        <button onclick="concluirAula()">✅ Concluir Primeira Aula</button>
+        <button onclick="marcarRevisao()">📅 Marcar Revisão como Feita</button>
+        <button onclick="limparDados()">🗑️ Limpar Dados</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>📋 Log de Ações</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        function log(mensagem, tipo = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = tipo === 'error' ? 'red' : tipo === 'success' ? 'green' : 'black';
+            logDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${mensagem}</div>`;
+        }
+
+        function mostrarDados() {
+            const dados = localStorage.getItem('aulas-estado-completo');
+            const dadosDiv = document.getElementById('dados-atual');
+            
+            if (dados) {
+                try {
+                    const parsed = JSON.parse(dados);
+                    const aulasComRevisao = parsed.aulas?.filter(a => a.datasRevisao && a.datasRevisao.length > 0) || [];
+                    
+                    dadosDiv.innerHTML = `
+                        <div class="success">
+                            <strong>✅ Dados encontrados!</strong><br>
+                            Total de aulas: ${parsed.aulas?.length || 0}<br>
+                            Aulas concluídas: ${parsed.aulas?.filter(a => a.concluida).length || 0}<br>
+                            Aulas com revisões agendadas: ${aulasComRevisao.length}<br>
+                            <pre>${JSON.stringify(aulasComRevisao.map(a => ({
+                                titulo: a.titulo,
+                                concluida: a.concluida,
+                                datasRevisao: a.datasRevisao,
+                                revisoesFeitas: a.revisoesFeitas
+                            })), null, 2)}</pre>
+                        </div>
+                    `;
+                } catch (e) {
+                    dadosDiv.innerHTML = `<div class="error">❌ Erro ao parsear dados: ${e.message}</div>`;
+                }
+            } else {
+                dadosDiv.innerHTML = '<div class="error">❌ Nenhum dado encontrado no localStorage</div>';
+            }
+        }
+
+        function concluirAula() {
+            const dados = localStorage.getItem('aulas-estado-completo');
+            if (dados) {
+                try {
+                    const parsed = JSON.parse(dados);
+                    const primeiraAula = parsed.aulas?.[0];
+                    
+                    if (primeiraAula) {
+                        // Marcar como concluída e gerar datas de revisão
+                        const hoje = new Date().toISOString().slice(0, 10);
+                        const datasRevisao = gerarDatasRevisao(hoje);
+                        
+                        primeiraAula.concluida = true;
+                        primeiraAula.ultimaRevisao = hoje;
+                        primeiraAula.datasRevisao = datasRevisao;
+                        primeiraAula.revisoesFeitas = [];
+                        
+                        localStorage.setItem('aulas-estado-completo', JSON.stringify(parsed));
+                        log(`✅ Aula "${primeiraAula.titulo}" concluída com ${datasRevisao.length} revisões agendadas`, 'success');
+                        mostrarDados();
+                    } else {
+                        log('❌ Nenhuma aula encontrada para concluir', 'error');
+                    }
+                } catch (e) {
+                    log(`❌ Erro ao concluir aula: ${e.message}`, 'error');
+                }
+            } else {
+                log('❌ Nenhum dado encontrado no localStorage', 'error');
+            }
+        }
+
+        function marcarRevisao() {
+            const dados = localStorage.getItem('aulas-estado-completo');
+            if (dados) {
+                try {
+                    const parsed = JSON.parse(dados);
+                    const aulaComRevisao = parsed.aulas?.find(a => a.datasRevisao && a.datasRevisao.length > 0);
+                    
+                    if (aulaComRevisao && aulaComRevisao.datasRevisao.length > 0) {
+                        const dataRevisao = aulaComRevisao.datasRevisao[0];
+                        
+                        // Remover a revisão marcada como feita
+                        aulaComRevisao.datasRevisao = aulaComRevisao.datasRevisao.filter(d => d !== dataRevisao);
+                        aulaComRevisao.revisoesFeitas = [...(aulaComRevisao.revisoesFeitas || []), dataRevisao];
+                        
+                        localStorage.setItem('aulas-estado-completo', JSON.stringify(parsed));
+                        log(`✅ Revisão marcada como feita para "${aulaComRevisao.titulo}" em ${dataRevisao}`, 'success');
+                        log(`📅 Revisões restantes: ${aulaComRevisao.datasRevisao.length}`, 'info');
+                        mostrarDados();
+                    } else {
+                        log('❌ Nenhuma revisão pendente encontrada', 'error');
+                    }
+                } catch (e) {
+                    log(`❌ Erro ao marcar revisão: ${e.message}`, 'error');
+                }
+            } else {
+                log('❌ Nenhum dado encontrado no localStorage', 'error');
+            }
+        }
+
+        function gerarDatasRevisao(dataConclusao) {
+            const dias = [1, 3, 10, 40];
+            const datas = [];
+            const base = new Date(dataConclusao);
+            dias.forEach(d => {
+                const nova = new Date(base);
+                nova.setDate(nova.getDate() + d);
+                datas.push(nova.toISOString().slice(0, 10));
+            });
+            return datas;
+        }
+
+        function limparDados() {
+            localStorage.removeItem('aulas-estado-completo');
+            log('🗑️ Dados limpos do localStorage', 'success');
+            mostrarDados();
+        }
+
+        // Carregar dados ao iniciar
+        mostrarDados();
+        log('🚀 Página de teste carregada');
+    </script>
+</body>
+</html> 

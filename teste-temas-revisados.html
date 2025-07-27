@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste Temas Revisados</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .metric-card { 
+            background: #181818; 
+            border: 1px solid #333; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin: 10px 0;
+            color: white;
+        }
+        .metric-value { font-size: 2em; font-weight: bold; color: #3b82f6; }
+        .metric-description { color: #9ca3af; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste de Temas Revisados</h1>
+    
+    <div class="test-section">
+        <h3>📊 Métrica "Temas Revisados" Atual</h3>
+        <div id="metrica-atual"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>🔧 Ações de Teste</h3>
+        <button onclick="concluirAula()">✅ Concluir Aula</button>
+        <button onclick="marcarRevisao()">📅 Marcar Revisão como Feita</button>
+        <button onclick="mostrarDetalhes()">🔍 Mostrar Detalhes</button>
+        <button onclick="limparDados()">🗑️ Limpar Dados</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>📋 Log de Ações</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        function log(mensagem, tipo = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = tipo === 'error' ? 'red' : tipo === 'success' ? 'green' : 'blue';
+            logDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${mensagem}</div>`;
+        }
+
+        function calcularTemasRevisados() {
+            const dados = localStorage.getItem('aulas-estado-completo');
+            if (!dados) return { temasRevisados: 0, aulasConcluidas: 0, revisoesFeitas: 0 };
+            
+            try {
+                const parsed = JSON.parse(dados);
+                const aulasConcluidas = parsed.aulas?.filter(a => a.concluida).length || 0;
+                const totalRevisoesFeitas = parsed.aulas?.reduce((total, aula) => {
+                    return total + (aula.revisoesFeitas?.length || 0);
+                }, 0) || 0;
+                const temasRevisados = aulasConcluidas + totalRevisoesFeitas;
+                
+                return { temasRevisados, aulasConcluidas, revisoesFeitas: totalRevisoesFeitas };
+            } catch (e) {
+                log(`❌ Erro ao calcular: ${e.message}`, 'error');
+                return { temasRevisados: 0, aulasConcluidas: 0, revisoesFeitas: 0 };
+            }
+        }
+
+        function mostrarMetrica() {
+            const { temasRevisados, aulasConcluidas, revisoesFeitas } = calcularTemasRevisados();
+            const metricaDiv = document.getElementById('metrica-atual');
+            
+            metricaDiv.innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-value">${temasRevisados}</div>
+                    <div style="color: white; font-size: 1.2em; margin-bottom: 10px;">Temas Revisados</div>
+                    <div class="metric-description">
+                        📚 Aulas concluídas: ${aulasConcluidas}<br>
+                        🔄 Revisões feitas: ${revisoesFeitas}<br>
+                        📊 Total: ${aulasConcluidas} + ${revisoesFeitas} = ${temasRevisados}
+                    </div>
+                </div>
+            `;
+        }
+
+        function mostrarDetalhes() {
+            const dados = localStorage.getItem('aulas-estado-completo');
+            if (dados) {
+                try {
+                    const parsed = JSON.parse(dados);
+                    const aulasComRevisoes = parsed.aulas?.filter(a => a.revisoesFeitas && a.revisoesFeitas.length > 0) || [];
+                    
+                    let detalhes = '<h4>📋 Detalhes das Revisões:</h4>';
+                    if (aulasComRevisoes.length > 0) {
+                        aulasComRevisoes.forEach(aula => {
+                            detalhes += `
+                                <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                                    <strong>${aula.titulo}</strong><br>
+                                    ✅ Revisões feitas: ${aula.revisoesFeitas.length}<br>
+                                    📅 Datas: ${aula.revisoesFeitas.join(', ')}<br>
+                                    📋 Pendentes: ${aula.datasRevisao?.length || 0}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        detalhes += '<p>Nenhuma revisão feita ainda.</p>';
+                    }
+                    
+                    document.getElementById('log').innerHTML += `<div style="margin: 10px 0; padding: 10px; background: #e9ecef; border-radius: 5px;">${detalhes}</div>`;
+                } catch (e) {
+                    log(`❌ Erro ao mostrar detalhes: ${e.message}`, 'error');
+                }
+            } else {
+                log('❌ Nenhum dado encontrado', 'error');
+            }
+        }
+
+        function concluirAula() {
+            const dados = localStorage.getItem('aulas-estado-completo');
+            if (dados) {
+                try {
+                    const parsed = JSON.parse(dados);
+                    const primeiraAula = parsed.aulas?.find(a => !a.concluida);
+                    
+                    if (primeiraAula) {
+                        // Marcar como concluída e gerar datas de revisão
+                        const hoje = new Date().toISOString().slice(0, 10);
+                        const datasRevisao = gerarDatasRevisao(hoje);
+                        
+                        primeiraAula.concluida = true;
+                        primeiraAula.ultimaRevisao = hoje;
+                        primeiraAula.datasRevisao = datasRevisao;
+                        primeiraAula.revisoesFeitas = [];
+                        
+                        localStorage.setItem('aulas-estado-completo', JSON.stringify(parsed));
+                        log(`✅ Aula "${primeiraAula.titulo}" concluída com ${datasRevisao.length} revisões agendadas`, 'success');
+                        mostrarMetrica();
+                    } else {
+                        log('❌ Nenhuma aula pendente encontrada', 'error');
+                    }
+                } catch (e) {
+                    log(`❌ Erro ao concluir aula: ${e.message}`, 'error');
+                }
+            } else {
+                log('❌ Nenhum dado encontrado no localStorage', 'error');
+            }
+        }
+
+        function marcarRevisao() {
+            const dados = localStorage.getItem('aulas-estado-completo');
+            if (dados) {
+                try {
+                    const parsed = JSON.parse(dados);
+                    const aulaComRevisao = parsed.aulas?.find(a => a.datasRevisao && a.datasRevisao.length > 0);
+                    
+                    if (aulaComRevisao && aulaComRevisao.datasRevisao.length > 0) {
+                        const dataRevisao = aulaComRevisao.datasRevisao[0];
+                        
+                        // Remover a revisão marcada como feita
+                        aulaComRevisao.datasRevisao = aulaComRevisao.datasRevisao.filter(d => d !== dataRevisao);
+                        aulaComRevisao.revisoesFeitas = [...(aulaComRevisao.revisoesFeitas || []), dataRevisao];
+                        
+                        localStorage.setItem('aulas-estado-completo', JSON.stringify(parsed));
+                        log(`✅ Revisão marcada como feita para "${aulaComRevisao.titulo}" em ${dataRevisao}`, 'success');
+                        log(`📊 Temas Revisados aumentou!`, 'success');
+                        mostrarMetrica();
+                    } else {
+                        log('❌ Nenhuma revisão pendente encontrada', 'error');
+                    }
+                } catch (e) {
+                    log(`❌ Erro ao marcar revisão: ${e.message}`, 'error');
+                }
+            } else {
+                log('❌ Nenhum dado encontrado no localStorage', 'error');
+            }
+        }
+
+        function gerarDatasRevisao(dataConclusao) {
+            const dias = [1, 3, 10, 40];
+            const datas = [];
+            const base = new Date(dataConclusao);
+            dias.forEach(d => {
+                const nova = new Date(base);
+                nova.setDate(nova.getDate() + d);
+                datas.push(nova.toISOString().slice(0, 10));
+            });
+            return datas;
+        }
+
+        function limparDados() {
+            localStorage.removeItem('aulas-estado-completo');
+            log('🗑️ Dados limpos do localStorage', 'success');
+            mostrarMetrica();
+        }
+
+        // Carregar métrica ao iniciar
+        mostrarMetrica();
+        log('🚀 Página de teste carregada');
+        log('💡 Dica: Conclua uma aula e depois marque revisões como feitas para ver o contador aumentar!');
+    </script>
+</body>
+</html> 

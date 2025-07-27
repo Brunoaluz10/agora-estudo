@@ -61,7 +61,7 @@ const getPriorityText = (prioridade: Topico['prioridade']) => {
 
 export function TopicsTable({ topicos, onEdit, onDelete }: TopicsTableProps) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+    <div className="bg-[#181818] rounded-lg border border-gray-200 dark:border-gray-700">
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex space-x-4">
